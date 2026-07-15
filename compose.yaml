@@ -1,0 +1,85 @@
+services:
+  postgres:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-opencode_usage}
+      POSTGRES_USER: ${POSTGRES_USER:-opencode}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  collector:
+    build:
+      context: .
+      dockerfile: Dockerfile.collector
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      OPENCODE_USAGE_URL: ${OPENCODE_USAGE_URL:?Set OPENCODE_USAGE_URL in .env}
+      OPENCODE_AUTH: ${OPENCODE_AUTH:?Set OPENCODE_AUTH in .env}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-opencode_usage}
+      POSTGRES_USER: ${POSTGRES_USER:-opencode}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      AUTO_REFRESH_ENABLED: ${AUTO_REFRESH_ENABLED:-true}
+      AUTO_REFRESH_INTERVAL_MINUTES: ${AUTO_REFRESH_INTERVAL_MINUTES:-360}
+      RILL_INTERNAL_URL: ${RILL_INTERNAL_URL:-http://rill:9009}
+      CONTROL_PORT: "3000"
+    ports:
+      - "127.0.0.1:3000:3000"
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  rill:
+    build:
+      context: .
+      dockerfile: Dockerfile.rill
+      args:
+        RILL_VERSION: ${RILL_VERSION:-0.87.8}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-opencode_usage}
+      POSTGRES_USER: ${POSTGRES_USER:-opencode}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:9009:9009"
+    volumes:
+      - rill_data:/app/rill/tmp
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        exec rill start /app/rill --no-open --port 9009 --port-grpc 49009
+        --env POSTGRES_HOST=$${POSTGRES_HOST}
+        --env POSTGRES_PORT=$${POSTGRES_PORT}
+        --env POSTGRES_DB=$${POSTGRES_DB}
+        --env POSTGRES_USER=$${POSTGRES_USER}
+        --env POSTGRES_PASSWORD=$${POSTGRES_PASSWORD}
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  postgres_data:
+  rill_data:

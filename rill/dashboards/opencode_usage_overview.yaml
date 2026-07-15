@@ -1,0 +1,177 @@
+type: canvas
+
+display_name: OpenCode Usage Overview
+
+max_width: 1440
+gap_x: 16
+gap_y: 16
+
+filters:
+  enable: true
+  pinned:
+    - model
+    - provider
+    - subscription
+allow_custom_time_range: true
+
+time_ranges:
+  - DTD
+  - WTD
+  - MTD
+  - P7D
+  - P30D
+  - P3M
+  - inf
+
+defaults:
+  time_range: P7D
+  comparison_mode: time
+
+rows:
+  - height: 72px
+    items:
+      - width: 12
+        markdown:
+          content: |
+            # OpenCode Usage Overview
+
+            Requests, normalized cost, reported context categories, cache usage, and model performance.
+          alignment:
+            horizontal: left
+            vertical: middle
+
+  - height: 220px
+    items:
+      - width: 12
+        kpi_grid:
+          metrics_view: opencode_usage
+          measures:
+            - requests
+            - usd_cost
+            - average_cost_per_request
+            - context_processed_tokens
+            - cached_input_share
+            - known_sessions
+          comparison:
+            - delta
+            - percent_change
+            - previous
+          sparkline: right
+
+  - height: 360px
+    items:
+      - width: 6
+        line_chart:
+          metrics_view: opencode_usage
+          title: Cost over time
+          color: primary
+          x:
+            field: time_created
+            type: temporal
+          y:
+            field: usd_cost
+            type: quantitative
+            zeroBasedOrigin: true
+      - width: 6
+        line_chart:
+          metrics_view: opencode_usage
+          title: Requests over time
+          color: secondary
+          x:
+            field: time_created
+            type: temporal
+          y:
+            field: requests
+            type: quantitative
+            zeroBasedOrigin: true
+
+  - height: 360px
+    items:
+      - width: 6
+        line_chart:
+          metrics_view: opencode_usage
+          title: Context processed over time
+          color: primary
+          x:
+            field: time_created
+            type: temporal
+          y:
+            field: context_processed_tokens
+            type: quantitative
+            zeroBasedOrigin: true
+      - width: 6
+        line_chart:
+          metrics_view: opencode_usage
+          title: Fresh input versus cached input
+          color:
+            field: rill_measures
+            type: value
+            legendOrientation: top
+          x:
+            field: time_created
+            type: temporal
+          y:
+            field: fresh_input_tokens
+            fields:
+              - fresh_input_tokens
+              - cached_input_tokens
+            type: quantitative
+            zeroBasedOrigin: true
+
+  - height: 56px
+    items:
+      - width: 12
+        markdown:
+          content: "## Model analysis"
+          alignment:
+            horizontal: left
+            vertical: middle
+
+  - height: 380px
+    items:
+      - width: 6
+        bar_chart:
+          metrics_view: opencode_usage
+          title: Cost by model
+          color: primary
+          x:
+            field: model
+            type: nominal
+            limit: 12
+            sort: -y
+            labelAngle: 0
+          y:
+            field: usd_cost
+            type: quantitative
+            zeroBasedOrigin: true
+      - width: 6
+        bar_chart:
+          metrics_view: opencode_usage
+          title: Requests by model
+          color: secondary
+          x:
+            field: model
+            type: nominal
+            limit: 12
+            sort: -y
+            labelAngle: 0
+          y:
+            field: requests
+            type: quantitative
+            zeroBasedOrigin: true
+
+  - height: 420px
+    items:
+      - width: 12
+        table:
+          metrics_view: opencode_usage
+          title: Model comparison
+          description: Models ranked for detailed request, cost, context, cache, and output comparison.
+          columns:
+            - model
+            - requests
+            - usd_cost
+            - average_cost_per_request
+            - context_processed_tokens
+            - cached_input_share
+            - output_tokens

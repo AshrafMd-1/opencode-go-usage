@@ -1,0 +1,11 @@
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+.pi
+data
+node_modules
+npm-debug.log*
+.rill
+**/.DS_Store

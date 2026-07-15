@@ -1,0 +1,40 @@
+FROM ubuntu:22.04 AS downloader
+
+ARG TARGETARCH
+ARG RILL_VERSION=0.87.8
+ARG RILL_SHA256_AMD64=910cbdcb02a945352be8fc3029ba009fc39307ed5a76396b822d23b1be1bb8d2
+ARG RILL_SHA256_ARM64=f27f7e00a771fb04cdf469a7866f4eeafdfaee02f2a12a06c40dfeb60912ddf7
+
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl unzip \
+    && rm -rf /var/lib/apt/lists/* \
+    && case "$TARGETARCH" in \
+         amd64) sha="$RILL_SHA256_AMD64" ;; \
+         arm64) sha="$RILL_SHA256_ARM64" ;; \
+         *) echo "Unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
+       esac \
+    && curl -fsSL -o /tmp/rill.zip "https://github.com/rilldata/rill/releases/download/v${RILL_VERSION}/rill_linux_${TARGETARCH}.zip" \
+    && echo "$sha  /tmp/rill.zip" | sha256sum -c - \
+    && unzip /tmp/rill.zip -d /tmp/rill-release \
+    && find /tmp/rill-release -type f -name rill -exec cp {} /usr/local/bin/rill \; \
+    && chmod 0755 /usr/local/bin/rill
+
+FROM ubuntu:22.04
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 1001 rill \
+    && useradd --create-home --uid 1001 --gid rill --shell /bin/sh rill \
+    && mkdir -p /home/rill/.rill \
+    && chown -R rill:rill /home/rill/.rill
+COPY --from=downloader /usr/local/bin/rill /usr/local/bin/rill
+COPY --chown=rill:rill rill /app/rill
+USER rill
+WORKDIR /app/rill
+RUN mkdir -p /app/rill/tmp \
+    && rill runtime install-duckdb-extensions
+
+EXPOSE 9009 49009
+HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=10 \
+  CMD curl -fsS http://127.0.0.1:9009/v1/ping >/dev/null || exit 1
+
+ENTRYPOINT ["rill"]
+CMD ["start", "/app/rill", "--no-open", "--port", "9009", "--port-grpc", "49009"]

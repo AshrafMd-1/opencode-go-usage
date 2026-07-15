@@ -1,0 +1,53 @@
+type: explore
+
+display_name: OpenCode Usage Explorer
+metrics_view: opencode_usage
+description: Explore OpenCode requests, costs, models, providers, context processing, cache usage, output, and session attribution.
+
+dimensions:
+  - model
+  - provider
+  - subscription
+  - session
+
+measures:
+  - requests
+  - usd_cost
+  - average_cost_per_request
+  - context_processed_tokens
+  - cached_input_share
+  - fresh_input_tokens
+  - cached_input_tokens
+  - cache_created_tokens
+  - output_tokens
+  - reasoning_tokens
+  - average_context_per_request
+  - average_output_per_request
+  - known_sessions
+  - session_attribution
+
+time_ranges:
+  - DTD
+  - WTD
+  - MTD
+  - P7D
+  - P30D
+  - P3M
+  - inf
+
+allow_custom_time_range: true
+
+defaults:
+  dimensions:
+    - model
+    - provider
+    - subscription
+  measures:
+    - requests
+    - usd_cost
+    - average_cost_per_request
+    - context_processed_tokens
+    - cached_input_share
+    - output_tokens
+  time_range: P7D
+  comparison_mode: time

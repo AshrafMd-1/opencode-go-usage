@@ -1,2 +1,7 @@
-data/
 .env
+data/
+node_modules/
+.rill/
+.pi/
+*.sql.dump
+opencode-usage.sql

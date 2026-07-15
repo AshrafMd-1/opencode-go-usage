@@ -1,0 +1,106 @@
+version: 1
+type: metrics_view
+
+model: opencode_usage
+display_name: OpenCode Usage
+description: Request volume, normalized cost, context processing, cache usage, output, and session attribution over time.
+timeseries: time_created
+smallest_time_grain: minute
+
+dimensions:
+  - name: model
+    display_name: Model
+    column: model
+    description: Model reported for the OpenCode request.
+  - name: provider
+    display_name: Provider
+    column: provider
+    description: Provider route used for the request.
+  - name: subscription
+    display_name: Subscription
+    expression: CASE WHEN plan = 'lite' THEN 'OpenCode Go' WHEN plan = 'unknown' THEN 'OpenCode Zen' ELSE plan END
+    description: OpenCode subscription used for the request. `lite` is displayed as OpenCode Go and missing plan enrichment is displayed as OpenCode Zen.
+  - name: session
+    display_name: Session ID
+    expression: CASE WHEN session_id IS NULL OR TRIM(session_id) = '' THEN 'Unattributed' ELSE session_id END
+    description: OpenCode session identifier. Requests without a session ID are displayed as Unattributed.
+
+measures:
+  - name: requests
+    display_name: Requests
+    description: Number of OpenCode usage requests in the selected period.
+    expression: COUNT(*)
+    treat_nulls_as: "0"
+    format_preset: humanize
+  - name: usd_cost
+    display_name: Cost
+    description: Normalized USD cost reported by OpenCode for the selected requests.
+    expression: SUM(cost_usd)
+    treat_nulls_as: "0"
+    format_preset: currency_usd
+  - name: average_cost_per_request
+    display_name: Average cost / request
+    description: Total normalized USD cost divided by request count.
+    expression: COALESCE(SUM(cost_usd) / NULLIF(COUNT(*), 0), 0)
+    format_d3: "$,.5f"
+  - name: context_processed_tokens
+    display_name: Context processed
+    description: Fresh input, cached input, and cache-created token categories combined. This represents reported category volume and is not guaranteed to be a count of unique physical tokens.
+    expression: SUM(input_tokens + cache_read_tokens + cache_write_5m_tokens + cache_write_1h_tokens)
+    treat_nulls_as: "0"
+    format_preset: humanize
+  - name: cached_input_share
+    display_name: Cached-input share
+    description: Percentage of fresh and cached input that came from cache reads. Cache writes are excluded.
+    expression: COALESCE(SUM(cache_read_tokens) / NULLIF(SUM(input_tokens + cache_read_tokens), 0), 0)
+    format_preset: percentage
+  - name: fresh_input_tokens
+    display_name: Fresh input
+    description: Non-cached input tokens reported by OpenCode.
+    expression: SUM(input_tokens)
+    treat_nulls_as: "0"
+    format_preset: humanize
+  - name: cached_input_tokens
+    display_name: Cached input
+    description: Input tokens served from cache, as reported by OpenCode.
+    expression: SUM(cache_read_tokens)
+    treat_nulls_as: "0"
+    format_preset: humanize
+  - name: cache_created_tokens
+    display_name: Cache created
+    description: Tokens written into provider cache, combining 5-minute and 1-hour cache-write categories.
+    expression: SUM(cache_write_5m_tokens + cache_write_1h_tokens)
+    treat_nulls_as: "0"
+    format_preset: humanize
+  - name: output_tokens
+    display_name: Output
+    description: Provider-reported output tokens. Reasoning is displayed separately and is not recombined into a total.
+    expression: SUM(output_tokens)
+    treat_nulls_as: "0"
+    format_preset: humanize
+  - name: reasoning_tokens
+    display_name: Reasoning
+    description: Provider-reported reasoning tokens. Missing source values are normalized to zero.
+    expression: SUM(reasoning_tokens)
+    treat_nulls_as: "0"
+    format_preset: humanize
+  - name: average_context_per_request
+    display_name: Average context / request
+    description: Average reported context-category volume processed per request.
+    expression: COALESCE(SUM(input_tokens + cache_read_tokens + cache_write_5m_tokens + cache_write_1h_tokens) / NULLIF(COUNT(*), 0), 0)
+    format_preset: humanize
+  - name: average_output_per_request
+    display_name: Average output / request
+    description: Average provider-reported output tokens per request.
+    expression: COALESCE(SUM(output_tokens) / NULLIF(COUNT(*), 0), 0)
+    format_preset: humanize
+  - name: known_sessions
+    display_name: Known sessions
+    description: Distinct non-empty OpenCode session IDs. Requests without a session ID are excluded.
+    expression: COUNT(DISTINCT NULLIF(session_id, ''))
+    format_preset: humanize
+  - name: session_attribution
+    display_name: Session attribution
+    description: Percentage of requests containing a non-empty session ID.
+    expression: COALESCE(SUM(CASE WHEN session_id <> '' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 0)
+    format_preset: percentage

@@ -1,0 +1,5 @@
+compiler: rillv1
+
+display_name: OpenCode Usage
+
+description: Local analytics for OpenCode request, token, and cost usage.

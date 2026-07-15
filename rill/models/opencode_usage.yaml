@@ -1,0 +1,36 @@
+type: model
+connector: postgres
+materialize: true
+
+sql: |
+  SELECT
+    fingerprint,
+    request_id,
+    workspace_id,
+    time_created,
+    model,
+    provider,
+    plan,
+    session_id,
+    input_tokens,
+    output_tokens,
+    reasoning_tokens,
+    cache_read_tokens,
+    cache_write_5m_tokens,
+    cache_write_1h_tokens,
+    cost_usd
+  FROM usage_requests
+
+tests:
+  - name: unique_fingerprints
+    sql: |
+      SELECT fingerprint
+      FROM opencode_usage
+      GROUP BY fingerprint
+      HAVING COUNT(*) > 1
+  - name: valid_values
+    assert: >-
+      time_created IS NOT NULL AND
+      input_tokens >= 0 AND output_tokens >= 0 AND reasoning_tokens >= 0 AND
+      cache_read_tokens >= 0 AND cache_write_5m_tokens >= 0 AND
+      cache_write_1h_tokens >= 0 AND cost_usd >= 0

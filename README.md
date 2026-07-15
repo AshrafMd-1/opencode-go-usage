@@ -1,322 +1,239 @@
-# OPC — OpenCode Usage CLI
+# OpenCode Usage Dashboard
 
-`OPC` is a small Bash/Node script that shows your OpenCode usage with full pagination, local caching, quota reset times, and cost breakdowns.
-
-It is designed to fix the main limitation of the OpenCode web usage table: the web UI only shows paginated rows, while `OPC` fetches and merges all usage records so totals are accurate.
-
-## What it shows
-
-Running:
-
-```bash
-./OPC
-```
-
-shows:
-
-- request count, first/last request range, and range duration
-- OpenCode Go quota windows:
-  - rolling/session usage
-  - weekly usage
-  - monthly usage
-  - reset duration and exact reset time
-- request count and spend for:
-  - today
-  - last 7 days
-  - this month
-  - all time
-- by-model breakdown:
-  - requests
-  - input tokens
-  - cache read tokens
-  - cache write tokens
-  - input + cache tokens
-  - output tokens
-  - reasoning tokens
-  - cost
-- daily request/token/cost breakdown
-
-Optional views:
-
-```bash
-./OPC --latest N
-```
-
-Shows the latest `N` raw usage requests, for example `./OPC --latest 20`.
-
-```bash
-./OPC --start DD-MM-YYYY --end DD-MM-YYYY
-```
-
-Filters summaries to an inclusive date range. Either `--start` or `--end` can be used alone.
-
-```bash
-./OPC --json
-```
-
-Prints a machine-readable JSON summary.
-
-## Files
+A localhost-only dashboard for OpenCode usage trends. A Node.js collector retrieves all paginated usage records, stores them in PostgreSQL, and refreshes a [Rill](https://github.com/rilldata/rill) Explore dashboard backed by DuckDB.
 
 ```text
-usage/
-  OPC             # executable script
-  .env            # local config with your OpenCode URL/auth
-  .env.example    # config template
-  README.md       # this file
-  data/
-    usage.json    # merged cached usage records
-    meta.json     # cache/fetch metadata
+OpenCode → collector → PostgreSQL → Rill/DuckDB → dashboard
 ```
 
-`data/pages/` is **not** created by default. Page snapshots are only written when debugging with `--save-pages`.
+The stack supports Linux ARM64 (`aarch64`) and AMD64. It is intended for Ubuntu 22.04 and also works with Docker Desktop.
+
+## Dashboard contents
+
+The **OpenCode Usage** dashboard provides time trends and comparisons for:
+
+- requests and normalized USD cost
+- input, output, reasoning, cache-read, and cache-write tokens
+- total input/cache and total token volume
+- average cost per request and cache-read ratio
+- model, provider, plan, workspace, and session dimensions
+- today, week/month to date, 7-day, 30-day, 3-month, all-time, and custom ranges
+
+Quota/reset data is intentionally not included because it has a different data grain.
+
+## Requirements
+
+- Docker Engine with the Compose plugin
+- an OpenCode workspace usage URL
+- the workspace's secret `auth` cookie
+
+No local Node.js or Rill installation is required.
 
 ## Setup
 
-Copy/edit `.env` next to the `OPC` script:
+1. Create local configuration:
 
-```bash
-OPENCODE_USAGE_URL=https://opencode.ai/workspace/<workspace-id>/usage
-OPENCODE_AUTH=<raw auth cookie value>
-```
+   ```bash
+   cp .env.example .env
+   ```
 
-`OPENCODE_AUTH` can be either:
+2. Edit `.env` and set at least:
 
-```bash
-OPENCODE_AUTH=actual_cookie_value_here
-```
+   ```dotenv
+   OPENCODE_USAGE_URL=https://opencode.ai/workspace/<workspace-id>/usage
+   OPENCODE_AUTH=<raw-auth-cookie-value>
+   POSTGRES_PASSWORD=<long-random-password>
+   ```
 
-or a full cookie-style value:
+3. Build and start:
 
-```bash
-OPENCODE_AUTH=auth=actual_cookie_value_here
-```
+   ```bash
+   docker compose up --build -d
+   ```
 
-Optional:
+4. Follow startup:
 
-```bash
-OPC_DATA_DIR=./data
-```
+   ```bash
+   docker compose logs -f collector rill
+   ```
 
-Relative `OPC_DATA_DIR` paths are resolved relative to the script directory.
+5. Open:
 
-## Run from anywhere
+   - controls: <http://localhost:3000>
+   - dashboard: <http://localhost:9009>
 
-Add this directory to your shell PATH in `~/.zshrc`:
+The initial collector run ignores the old `data/usage.json` cache and performs a clean, full OpenCode refetch. Existing PostgreSQL volumes use incremental refreshes.
 
-```bash
-export PATH="/Users/ashraf/Documents/Projects/Scripts/usage:$PATH"
-```
+## Refresh behavior
 
-Then reload your shell:
+A refresh has two stages:
 
-```bash
-source ~/.zshrc
-```
+1. the collector fetches OpenCode records and upserts them into PostgreSQL;
+2. it asks Rill to reload the `opencode_usage` model into DuckDB.
 
-Now you can run:
+The controls page offers:
 
-```bash
-OPC
-```
+- **Refresh now** — run the complete pipeline;
+- **Retry Rill only** — reload Rill after PostgreSQL succeeded but Rill was unavailable;
+- **Enable/disable auto-refresh** — persisted in PostgreSQL.
 
-from any terminal directory.
+Auto-refresh defaults to every 6 hours. `AUTO_REFRESH_ENABLED` initializes a new database only; afterward, the controls-page setting is authoritative. Dashboard filter changes merely re-query data already loaded into Rill.
 
-## How it works
+The incremental collector preserves the five-sequential-request fingerprint overlap. A healthy no-change run normally fetches only the first 50-row OpenCode page. If no overlap is found, it safely scans all pages and upserts by fingerprint.
 
-### 1. Loads config
+## Security
 
-`OPC` first loads `.env` from the same directory as the script.
+`OPENCODE_AUTH` is a live authentication secret. Never commit, print, or share `.env`.
 
-Then it reads:
-
-- `OPENCODE_USAGE_URL`
-- `OPENCODE_AUTH`
-- optional `OPC_DATA_DIR`
-
-Shell environment variables override `.env` values if already set.
-
-### 2. Fetches the OpenCode usage page
-
-It requests your OpenCode usage page using the auth cookie.
-
-Example URL shape:
+Compose binds both web ports only to loopback:
 
 ```text
-https://opencode.ai/workspace/<workspace-id>/usage
+127.0.0.1:3000
+127.0.0.1:9009
 ```
 
-### 3. Discovers OpenCode's internal usage API
+PostgreSQL has no published host port. **Rill Developer is not a production authentication boundary. Do not publish this stack to the internet.** Add a private network or authenticated HTTPS reverse proxy before any future remote deployment.
 
-OpenCode does not expose the table as a simple static JSON endpoint in the page.
+## Operations
 
-So `OPC` reads the page's JavaScript assets and dynamically finds the internal SolidStart server function used by the web UI for:
+### Status and logs
+
+```bash
+docker compose ps
+docker compose logs --tail=200 collector
+docker compose logs --tail=200 rill
+docker compose logs --tail=200 postgres
+```
+
+### Validate PostgreSQL totals
+
+```bash
+docker compose exec postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
+  'SELECT COUNT(*) AS requests, SUM(cost_usd) AS cost_usd FROM usage_requests;'
+```
+
+If those shell variables are not exported, use the values from `.env` directly.
+
+### Stop or restart
+
+```bash
+docker compose stop
+docker compose restart collector rill
+```
+
+### Backup
+
+```bash
+docker compose exec -T postgres pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" > opencode-usage.sql
+```
+
+The dump contains usage metadata such as workspace/session/key IDs. Store it securely.
+
+Restore into an empty database with `psql` after recreating the stack.
+
+### Reset all stored data
+
+```bash
+docker compose down -v
+docker compose up --build -d
+```
+
+**Warning:** `down -v` permanently deletes PostgreSQL history, refresh settings, and Rill runtime state. The next start performs a full OpenCode refetch.
+
+### Upgrade Rill
+
+Rill is pinned to `v0.87.8`. `Dockerfile.rill` contains the official SHA-256 digest for each AMD64/ARM64 release archive. To upgrade:
+
+1. change the version;
+2. obtain both archive digests from the official GitHub release;
+3. update both checksum build arguments;
+4. rebuild with `docker compose build --no-cache rill`;
+5. run the verification steps below.
+
+Changing only `RILL_VERSION` intentionally causes the image build to fail checksum verification.
+
+## ARM64 verification
+
+On the Ubuntu host:
+
+```bash
+uname -m
+docker compose build --no-cache
+docker compose up -d
+docker compose ps
+```
+
+`uname -m` should report `aarch64`. The Rill Dockerfile maps Docker's `arm64` target to the signed `rill_linux_arm64.zip` release and does not require emulation.
+
+Confirm published bindings:
+
+```bash
+docker compose port collector 3000
+docker compose port rill 9009
+```
+
+Both should report `127.0.0.1`.
+
+## Troubleshooting
+
+### Collector reports HTTP 401/403
+
+The OpenCode cookie has likely expired. Replace `OPENCODE_AUTH` in `.env`, then recreate the collector:
+
+```bash
+docker compose up -d --force-recreate collector
+```
+
+Existing PostgreSQL and dashboard data remain available.
+
+### OpenCode bundle discovery fails
+
+OpenCode may have changed its internal SolidStart assets or `usage.list` reference. Check sanitized collector logs. Do not paste cookies or raw `.env` contents into an issue.
+
+### PostgreSQL schema is missing after editing `postgres/init.sql`
+
+Initialization scripts run only for a new PostgreSQL volume. Apply a migration manually or reset the volume after taking a backup.
+
+### PostgreSQL refreshed but Rill did not
+
+Use **Retry Rill only** on <http://localhost:3000>. Then inspect:
+
+```bash
+docker compose logs --tail=200 rill collector
+```
+
+### Rill starts with a YAML/model error
+
+Run:
+
+```bash
+docker compose exec rill rill project status --local
+```
+
+Then inspect the Rill logs and the files under `rill/`.
+
+## Development
+
+Run unit tests locally:
+
+```bash
+npm install
+npm test
+```
+
+Validate Compose interpolation without starting services:
+
+```bash
+docker compose config --quiet
+```
+
+Core files:
 
 ```text
-usage.list
-```
-
-This is the same function the OpenCode web page uses when you click pagination.
-
-### 4. Fetches paginated usage rows
-
-OpenCode usage pages are fetched in pages of 50 requests.
-
-On first run, `OPC` fetches every page until the final page has fewer than 50 rows.
-
-Then it merges all rows into:
-
-```text
-data/usage.json
-```
-
-### 5. Uses incremental cache after first run
-
-On later runs, `OPC` avoids refetching all historical pages.
-
-It fetches page 0, then checks whether at least 5 sequential fetched requests match 5 sequential cached requests.
-
-The overlap check uses a full request fingerprint, not just the OpenCode ID:
-
-- request id
-- workspace id
-- timestamp
-- model
-- provider
-- input tokens
-- output tokens
-- reasoning tokens
-- cache read tokens
-- cache write tokens
-- cost
-- key id
-- session id
-- plan
-
-If overlap is found:
-
-1. requests above the overlap are treated as new
-2. new requests are prepended to the existing cache
-3. duplicated records are removed
-4. fetching stops early
-
-This keeps the command fast while preserving accurate all-time totals.
-
-### 6. Parses quota/reset windows
-
-For OpenCode Go quota bars, `OPC` fetches:
-
-```text
-https://opencode.ai/workspace/<workspace-id>/go
-```
-
-It parses the page data for:
-
-- rolling usage
-- weekly usage
-- monthly usage
-- reset seconds
-
-Then it displays both relative reset time and exact local reset time.
-
-## Commands
-
-```bash
-OPC
-```
-
-Default summary, including request range duration and daily breakdown.
-
-```bash
-OPC --latest N
-```
-
-Show latest `N` usage requests, for example `OPC --latest 20`.
-
-```bash
-OPC --start DD-MM-YYYY
-```
-
-Include requests from this date onward.
-
-```bash
-OPC --end DD-MM-YYYY
-```
-
-Include requests up to and including this date.
-
-```bash
-OPC --start DD-MM-YYYY --end DD-MM-YYYY
-```
-
-Include requests between both dates, inclusive.
-
-```bash
-OPC --refresh
-```
-
-Ignore cache and refetch all pages.
-
-```bash
-OPC --save-pages
-```
-
-Debug mode: save fetched page snapshots under `data/pages/`.
-
-```bash
-OPC --json
-```
-
-Output JSON summary.
-
-```bash
-OPC --utc
-```
-
-Group/display dates in UTC instead of local time.
-
-```bash
-OPC --help
-```
-
-Show help.
-
-## Cache behavior
-
-Normal cache files:
-
-```text
-data/usage.json
-data/meta.json
-```
-
-Debug page snapshots are disabled by default to avoid unnecessary disk writes.
-
-If you want to rebuild everything:
-
-```bash
-OPC --refresh
-```
-
-If you want to delete cache manually:
-
-```bash
-rm -rf data
-```
-
-Then run:
-
-```bash
-OPC
-```
-
-## Security note
-
-`.env` contains your OpenCode auth cookie. Do not commit it or share it.
-
-If this directory ever becomes a git repo, add this to `.gitignore`:
-
-```gitignore
-.env
-data/
+src/                    collector, PostgreSQL, scheduler, and controls
+postgres/init.sql       durable schema and constraints
+rill/                    connector, model, metrics view, and dashboard YAML
+compose.yaml             localhost-only service topology
+Dockerfile.collector     Node collector image
+Dockerfile.rill          verified multi-architecture Rill image
 ```
