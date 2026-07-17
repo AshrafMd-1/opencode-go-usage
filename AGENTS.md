@@ -19,7 +19,7 @@ The supported product is the collector, PostgreSQL store, controls page, and Ril
 - `src/opencode.js` — OpenCode page/runtime discovery and API fetcher
 - `src/usage.js` — fingerprinting, normalization, overlap, and sanitization
 - `src/db.js` — PostgreSQL access and parameterized upserts
-- `postgres/init.sql` — initial database schema
+- `postgres/init.sql` — initial database schema embedded by `Dockerfile.postgres`
 - `rill/` — Rill data/AI connectors, model, metrics view, and Explore dashboard
 - `rill/connectors/openai.yaml` — OpenAI-compatible Rill AI connector using environment references only
 - `compose.yaml` — service topology and loopback-only published ports

@@ -330,5 +330,6 @@ rill/                    data/AI connectors, model, metrics view, and dashboard 
 rill/connectors/openai.yaml  OpenAI-compatible provider configuration (no embedded secret)
 compose.yaml             localhost-only service topology and runtime environment wiring
 Dockerfile.collector     Node collector image
+Dockerfile.postgres      PostgreSQL image with embedded initialization schema
 Dockerfile.rill          verified multi-architecture Rill image
 ```
