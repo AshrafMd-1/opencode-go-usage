@@ -5,7 +5,7 @@ ARG RILL_VERSION=0.87.8
 ARG RILL_SHA256_AMD64=910cbdcb02a945352be8fc3029ba009fc39307ed5a76396b822d23b1be1bb8d2
 ARG RILL_SHA256_ARM64=f27f7e00a771fb04cdf469a7866f4eeafdfaee02f2a12a06c40dfeb60912ddf7
 
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl unzip \
+RUN apt-get -o Acquire::Retries=5 update && apt-get install -y --no-install-recommends ca-certificates curl unzip \
     && rm -rf /var/lib/apt/lists/* \
     && case "$TARGETARCH" in \
          amd64) sha="$RILL_SHA256_AMD64" ;; \
@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     && chmod 0755 /usr/local/bin/rill
 
 FROM ubuntu:22.04
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git \
+RUN apt-get -o Acquire::Retries=5 update && apt-get install -y --no-install-recommends ca-certificates curl git \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 1001 rill \
     && useradd --create-home --uid 1001 --gid rill --shell /bin/sh rill \
