@@ -5,6 +5,12 @@ const { createPool, initializeState, readState, waitForDatabase } = require("./d
 const { sanitizeError } = require("./usage");
 
 const CONTROL_PORT = Number(process.env.CONTROL_PORT || 3000);
+const SECURITY_HEADERS = {
+  "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+  "referrer-policy": "no-referrer",
+  "x-content-type-options": "nosniff",
+  "x-frame-options": "DENY",
+};
 
 const HTML = `<!doctype html>
 <html lang="en">
@@ -80,7 +86,7 @@ load(); setInterval(load, 5000);
 
 function json(response, status, payload) {
   const data = JSON.stringify(payload);
-  response.writeHead(status, { "content-type": "application/json; charset=utf-8", "content-length": Buffer.byteLength(data), "cache-control": "no-store" });
+  response.writeHead(status, { ...SECURITY_HEADERS, "content-type": "application/json; charset=utf-8", "content-length": Buffer.byteLength(data), "cache-control": "no-store" });
   response.end(data);
 }
 
@@ -100,8 +106,14 @@ function createControlServer({ collector, pool }) {
   return http.createServer(async (request, response) => {
     try {
       const url = new URL(request.url, "http://localhost");
+      const origin = request.headers.origin;
+      if (request.method === "POST" && origin) {
+        let originHost;
+        try { originHost = new URL(origin).host; } catch { return json(response, 403, { error: "Cross-origin request rejected" }); }
+        if (originHost !== request.headers.host) return json(response, 403, { error: "Cross-origin request rejected" });
+      }
       if (request.method === "GET" && url.pathname === "/") {
-        response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+        response.writeHead(200, { ...SECURITY_HEADERS, "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
         return response.end(HTML);
       }
       if (request.method === "GET" && url.pathname === "/health") return json(response, 200, { ok: true });

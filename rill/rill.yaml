@@ -2,4 +2,6 @@ compiler: rillv1
 
 display_name: OpenCode Usage
 
-description: Local analytics for OpenCode request, token, and cost usage.
+description: Analytics for OpenCode request, token, and estimated API cost usage.
+
+ai_connector: openai

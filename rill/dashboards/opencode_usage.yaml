@@ -2,7 +2,7 @@ type: explore
 
 display_name: OpenCode Usage Explorer
 metrics_view: opencode_usage
-description: Explore OpenCode requests, costs, models, providers, context processing, cache usage, output, and session attribution.
+description: Explore OpenCode requests, estimated API costs, models, providers, context processing, cache usage, output, and session attribution.
 
 dimensions:
   - model

@@ -44,3 +44,13 @@ test("collector rejects concurrent refreshes before opening a database connectio
   collector.running = true;
   assert.deepEqual(await collector.refresh(), { accepted: false, busy: true });
 });
+
+test("collector clears its running flag when database connection fails", async () => {
+  const pool = {
+    async connect() { throw new Error("database unavailable"); },
+    async query() { throw new Error("database unavailable"); },
+  };
+  const collector = new Collector({ pool });
+  await assert.rejects(collector.refresh(), /database unavailable/);
+  assert.equal(collector.running, false);
+});

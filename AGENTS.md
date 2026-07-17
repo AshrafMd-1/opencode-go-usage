@@ -20,7 +20,8 @@ The supported product is the collector, PostgreSQL store, controls page, and Ril
 - `src/usage.js` — fingerprinting, normalization, overlap, and sanitization
 - `src/db.js` — PostgreSQL access and parameterized upserts
 - `postgres/init.sql` — initial database schema
-- `rill/` — Rill connector, model, metrics view, and Explore dashboard
+- `rill/` — Rill data/AI connectors, model, metrics view, and Explore dashboard
+- `rill/connectors/openai.yaml` — OpenAI-compatible Rill AI connector using environment references only
 - `compose.yaml` — service topology and loopback-only published ports
 - `Dockerfile.rill` — pinned architecture-aware Rill binary and checksums
 - `.env.example` — safe configuration template
@@ -28,9 +29,9 @@ The supported product is the collector, PostgreSQL store, controls page, and Ril
 
 ## Security rules
 
-Never commit or print secrets. `OPENCODE_AUTH` is an auth cookie and must be treated as a live credential.
+Never commit or print secrets. `OPENCODE_AUTH` is an auth cookie and `OPENAI_API_KEY` is an AI-provider credential; both must be treated as live credentials.
 
-The ignored `.env` file contains live local secrets and must never be read aloud, printed, or committed.
+The ignored `.env` file contains live local secrets and must never be read aloud, printed, or committed. Keep AI credentials in `.env`/deployment secrets and reference them from connector YAML; never embed them in tracked files.
 
 Additional requirements:
 
@@ -63,6 +64,7 @@ Manual and automatic refreshes must share one pipeline. Guard runs with both the
 ## Rill conventions
 
 - Keep one request-grain metrics view named `opencode_usage`, displayed as **OpenCode Usage**.
+- Keep Rill AI on the tracked `openai` connector, with API key, compatible base URL, and model supplied through runtime environment variables.
 - Do not mix quota snapshots into this metrics view.
 - PostgreSQL timestamps are UTC; Rill controls display timezone.
 - The collector triggers model refreshes. Do not add a competing Rill cron.

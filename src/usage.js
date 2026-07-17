@@ -73,54 +73,18 @@ function normalizeRow(row, defaultWorkspaceId = "") {
   };
 }
 
-function dedupeRows(rows, defaultWorkspaceId = "") {
-  const seen = new Set();
-  const output = [];
-  for (const row of rows) {
-    const key = fingerprint(row, defaultWorkspaceId);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    output.push(row);
-  }
-  return output;
-}
-
-function findSequentialOverlap(fetchedKeys, cachedKeys, minimumRun = 5) {
-  if (!fetchedKeys.length || !cachedKeys.length) return null;
-  const positions = new Map();
-  cachedKeys.forEach((key, index) => {
-    if (!positions.has(key)) positions.set(key, []);
-    positions.get(key).push(index);
-  });
-  const needed = Math.min(minimumRun, cachedKeys.length);
-
-  for (let fetchedIndex = 0; fetchedIndex < fetchedKeys.length; fetchedIndex += 1) {
-    for (const cachedIndex of positions.get(fetchedKeys[fetchedIndex]) || []) {
-      let count = 0;
-      while (
-        fetchedIndex + count < fetchedKeys.length &&
-        cachedIndex + count < cachedKeys.length &&
-        fetchedKeys[fetchedIndex + count] === cachedKeys[cachedIndex + count]
-      ) count += 1;
-      if (count >= needed) return { fetchedIndex, cachedIndex, count };
-    }
-  }
-  return null;
-}
-
 function sanitizeError(error) {
   let message = String(error?.message || error || "Unknown error");
   message = message
     .replace(/auth=[^\s;"']+/gi, "auth=[REDACTED]")
-    .replace(/(password|passwd|pwd)=([^\s&;]+)/gi, "$1=[REDACTED]")
+    .replace(/(password|passwd|pwd|api[_-]?key)=([^\s&;]+)/gi, "$1=[REDACTED]")
+    .replace(/Bearer\s+[^\s,;]+/gi, "Bearer [REDACTED]")
     .replace(/postgres(?:ql)?:\/\/[^\s]+/gi, "postgresql://[REDACTED]")
     .replace(/Cookie:\s*[^\r\n]+/gi, "Cookie: [REDACTED]");
   return message.slice(0, 1000);
 }
 
 module.exports = {
-  dedupeRows,
-  findSequentialOverlap,
   fingerprint,
   fingerprintParts,
   normalizeRow,

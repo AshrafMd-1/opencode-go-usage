@@ -3,7 +3,7 @@ type: metrics_view
 
 model: opencode_usage
 display_name: OpenCode Usage
-description: Request volume, normalized cost, context processing, cache usage, output, and session attribution over time.
+description: Request volume, estimated API cost, context processing, cache usage, output, and session attribution over time.
 timeseries: time_created
 smallest_time_grain: minute
 
@@ -33,14 +33,14 @@ measures:
     treat_nulls_as: "0"
     format_preset: humanize
   - name: usd_cost
-    display_name: Cost
-    description: Normalized USD cost reported by OpenCode for the selected requests.
+    display_name: Estimated API cost
+    description: Estimated USD API cost derived from the source value reported by OpenCode. It is not a verified invoice or account charge.
     expression: SUM(cost_usd)
     treat_nulls_as: "0"
     format_preset: currency_usd
   - name: average_cost_per_request
-    display_name: Average cost / request
-    description: Total normalized USD cost divided by request count.
+    display_name: Average estimated API cost / request
+    description: Estimated API cost divided by request count. It is not a verified billed average.
     expression: COALESCE(SUM(cost_usd) / NULLIF(COUNT(*), 0), 0)
     format_d3: "$,.5f"
   - name: context_processed_tokens

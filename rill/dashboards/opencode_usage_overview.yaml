@@ -35,7 +35,7 @@ rows:
           content: |
             # OpenCode Usage Overview
 
-            Requests, normalized cost, reported context categories, cache usage, and model performance.
+            Requests, estimated API cost, reported context categories, cache usage, and model performance.
           alignment:
             horizontal: left
             vertical: middle
@@ -63,7 +63,7 @@ rows:
       - width: 6
         line_chart:
           metrics_view: opencode_usage
-          title: Cost over time
+          title: Estimated API cost over time
           color: primary
           x:
             field: time_created
@@ -132,7 +132,7 @@ rows:
       - width: 6
         bar_chart:
           metrics_view: opencode_usage
-          title: Cost by model
+          title: Estimated API cost by model
           color: primary
           x:
             field: model
@@ -166,7 +166,7 @@ rows:
         table:
           metrics_view: opencode_usage
           title: Model comparison
-          description: Models ranked for detailed request, cost, context, cache, and output comparison.
+          description: Models ranked for detailed request, estimated API cost, context, cache, and output comparison.
           columns:
             - model
             - requests

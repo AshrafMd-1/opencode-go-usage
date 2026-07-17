@@ -3,17 +3,19 @@ const os = require("node:os");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 
-function headers(config, accept = "text/html") {
-  return {
+function headers(config, url, accept = "text/html") {
+  const target = new URL(url, config.origin);
+  const result = {
     "User-Agent": "Mozilla/5.0 (X11; Linux aarch64) OpenCode-Usage-Dashboard/1.0",
     Accept: accept,
-    Cookie: config.cookieHeader,
     Referer: config.usageUrl,
   };
+  if (target.origin === config.origin) result.Cookie = config.cookieHeader;
+  return result;
 }
 
 async function fetchText(url, config, accept = "text/html") {
-  const response = await fetch(url, { headers: headers(config, accept) });
+  const response = await fetch(url, { headers: headers(config, url, accept) });
   if (!response.ok) throw new Error(`HTTP ${response.status} fetching ${new URL(url).origin}${new URL(url).pathname}`);
   return response.text();
 }
@@ -32,7 +34,7 @@ function parseConfig(env = process.env) {
     usageUrl: parsed.toString(),
     origin: parsed.origin,
     workspaceId: decodeURIComponent(match[1]),
-    cookieHeader: auth.includes("=") ? auth : `auth=${auth}`,
+    cookieHeader: /^auth=/i.test(auth.trim()) ? auth.trim() : `auth=${auth.trim()}`,
   };
 }
 
@@ -98,10 +100,11 @@ async function createUsageFetcher(config) {
     originalFetch = globalThis.fetch;
     const realFetch = originalFetch.bind(globalThis);
     globalThis.fetch = (input, init = {}) => {
-      let url = typeof input === "string" ? input : input.url;
+      let url = input instanceof URL ? input.toString() : (typeof input === "string" ? input : input.url);
       if (url.startsWith("/")) url = config.origin + url;
-      init.headers = { ...(init.headers || {}), ...headers(config, "*/*") };
-      return realFetch(url, init);
+      const requestHeaders = new Headers(init.headers);
+      for (const [name, value] of Object.entries(headers(config, url, "*/*"))) requestHeaders.set(name, value);
+      return realFetch(url, { ...init, headers: requestHeaders });
     };
     const getUsage = createServerReference(discovered.serverId);
 

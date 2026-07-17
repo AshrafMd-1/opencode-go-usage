@@ -62,6 +62,9 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-opencode_usage}
       POSTGRES_USER: ${POSTGRES_USER:-opencode}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY in .env}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:?Set OPENAI_BASE_URL in .env}
+      OPENAI_MODEL: ${OPENAI_MODEL:?Set OPENAI_MODEL in .env}
     ports:
       - "127.0.0.1:9009:9009"
     volumes:
@@ -75,6 +78,9 @@ services:
         --env POSTGRES_DB=$${POSTGRES_DB}
         --env POSTGRES_USER=$${POSTGRES_USER}
         --env POSTGRES_PASSWORD=$${POSTGRES_PASSWORD}
+        --env OPENAI_API_KEY=$${OPENAI_API_KEY}
+        --env OPENAI_BASE_URL=$${OPENAI_BASE_URL}
+        --env OPENAI_MODEL=$${OPENAI_MODEL}
     logging:
       options:
         max-size: "10m"

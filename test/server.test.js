@@ -23,6 +23,8 @@ async function withServer(callback) {
 test("control page and state endpoint expose no-store responses", async () => withServer(async ({ base }) => {
   const page = await fetch(base);
   assert.equal(page.status, 200);
+  assert.equal(page.headers.get("x-frame-options"), "DENY");
+  assert.match(page.headers.get("content-security-policy"), /frame-ancestors 'none'/);
   assert.match(await page.text(), /Refresh now/);
   const state = await fetch(`${base}/api/state`);
   assert.equal(state.headers.get("cache-control"), "no-store");
@@ -37,6 +39,15 @@ test("manual refresh endpoint accepts one run and reports busy state", async () 
   collector.running = true;
   response = await fetch(`${base}/api/refresh`, { method: "POST" });
   assert.equal(response.status, 409);
+}));
+
+test("cross-origin state changes are rejected", async () => withServer(async ({ base, collector }) => {
+  const response = await fetch(`${base}/api/refresh`, {
+    method: "POST",
+    headers: { origin: "https://attacker.example" },
+  });
+  assert.equal(response.status, 403);
+  assert.equal(collector.refreshCalls, 0);
 }));
 
 test("scheduler toggle requires a boolean and persists valid changes", async () => withServer(async ({ base, state }) => {

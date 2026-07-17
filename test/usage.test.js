@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { dedupeRows, findSequentialOverlap, fingerprint, normalizeRow, sanitizeError } = require("../src/usage");
+const { fingerprint, normalizeRow, sanitizeError } = require("../src/usage");
 
 function row(overrides = {}) {
   return {
@@ -36,12 +36,6 @@ test("fingerprint is stable and includes every overlap field", () => {
   for (const mutation of mutations) assert.notEqual(fingerprint(original), fingerprint(row(mutation)));
 });
 
-test("sequential overlap requires a five-row run", () => {
-  const cached = ["a", "b", "c", "d", "e", "f"];
-  assert.deepEqual(findSequentialOverlap(["x", "a", "b", "c", "d", "e"], cached), { fetchedIndex: 1, cachedIndex: 0, count: 5 });
-  assert.equal(findSequentialOverlap(["a", "b", "x", "d", "e"], cached), null);
-});
-
 test("normalization derives precision-safe strings and USD cost", () => {
   const normalized = normalizeRow(row());
   assert.equal(normalized.rawCost, "123456789");
@@ -51,15 +45,8 @@ test("normalization derives precision-safe strings and USD cost", () => {
   assert.equal(normalizeRow(row({ inputTokens: -1 })), null);
 });
 
-test("deduplication is idempotent", () => {
-  const first = row();
-  const second = row({ id: "usg_2" });
-  assert.deepEqual(dedupeRows([first, first, second]), [first, second]);
-  assert.deepEqual(dedupeRows(dedupeRows([first, first, second])), [first, second]);
-});
-
-test("errors redact cookies, passwords, and database URLs", () => {
-  const cleaned = sanitizeError("Cookie: auth=secret password=hunter2 postgresql://user:pass@db/name");
-  assert.doesNotMatch(cleaned, /secret|hunter2|user:pass/);
+test("errors redact cookies, credentials, and database URLs", () => {
+  const cleaned = sanitizeError("Cookie: auth=secret password=hunter2 api_key=provider-credential Bearer bearer-secret postgresql://user:pass@db/name");
+  assert.doesNotMatch(cleaned, /secret|hunter2|provider-credential|user:pass/);
   assert.match(cleaned, /REDACTED/);
 });

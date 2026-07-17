@@ -72,9 +72,10 @@ class Collector {
     }
     const nextRun = new Date(Date.now() + this.intervalMs);
     await updateState(this.pool, { next_run_at: nextRun });
-    this.timer = setTimeout(async () => {
-      try { await this.refresh("scheduled"); } catch (error) { console.error(`Scheduled refresh failed: ${sanitizeError(error)}`); }
-      await this.schedule();
+    this.timer = setTimeout(() => {
+      this.refresh("scheduled")
+        .catch(error => console.error(`Scheduled refresh failed: ${sanitizeError(error)}`))
+        .finally(() => this.schedule().catch(error => console.error(`Scheduler setup failed: ${sanitizeError(error)}`)));
     }, this.intervalMs);
     this.timer.unref?.();
   }
@@ -88,11 +89,12 @@ class Collector {
   async refresh(reason = "manual") {
     if (this.running) return { accepted: false, busy: true };
     this.running = true;
-    const client = await this.pool.connect();
+    let client;
     let locked = false;
     let fetcher;
     const startedAt = new Date();
     try {
+      client = await this.pool.connect();
       const lock = await client.query("SELECT pg_try_advisory_lock($1) AS locked", [ADVISORY_LOCK_ID]);
       locked = lock.rows[0].locked;
       if (!locked) return { accepted: false, busy: true };
@@ -154,7 +156,7 @@ class Collector {
     } catch (error) {
       try { await client.query("ROLLBACK"); } catch {}
       const message = sanitizeError(error);
-      await updateState(client, {
+      await updateState(client || this.pool, {
         last_completed_at: new Date(),
         last_success: false,
         last_error: message,
@@ -163,7 +165,7 @@ class Collector {
     } finally {
       fetcher?.close();
       if (locked) await client.query("SELECT pg_advisory_unlock($1)", [ADVISORY_LOCK_ID]).catch(() => {});
-      client.release();
+      client?.release();
       this.running = false;
     }
   }
